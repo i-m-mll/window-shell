@@ -1,0 +1,14 @@
+[package]
+name = "window-shell-geometry"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+appkit = ["dep:objc2-app-kit"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3.2", optional = true, default-features = false, features = ["NSView", "NSWindow", "NSButton"] }
