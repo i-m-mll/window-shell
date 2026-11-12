@@ -13,6 +13,22 @@
   min-width: 0;
 }
 
+.shell-frame__cell {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+}
+
+.shell-frame__cell[data-separated]::before {
+  content: '';
+  position: absolute;
+  inset-block: 25%;
+  inset-inline-start: 0;
+  width: 1px;
+  background: var(--border-muted);
+  pointer-events: none;
+}
+
 .shell-frame__rail {
   grid-area: 2 / 1;
   min-height: 0;
