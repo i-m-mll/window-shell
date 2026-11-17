@@ -1,7 +1,8 @@
-//! Measure and place AppKit window controls in the window's logical coordinate space, and keep them placed.
+//! Present AppKit windows under the process's [`Launch`] mode, and measure and place their window controls in the
+//! window's logical coordinate space.
 
 use crate::{
-    button_placement, controls_reservation, header, union, verify, PlacementError, Rect,
+    button_placement, controls_reservation, header, union, verify, Launch, PlacementError, Rect,
     WindowControls,
 };
 use block2::RcBlock;
@@ -11,9 +12,11 @@ use objc2::{
     MainThreadMarker, Message,
 };
 use objc2_app_kit::{
-    NSView, NSWindow, NSWindowButton, NSWindowDidChangeBackingPropertiesNotification,
-    NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
-    NSWindowDidResizeNotification, NSWindowDidUpdateNotification, NSWindowStyleMask,
+    NSApplication, NSApplicationActivationOptions, NSApplicationActivationPolicy,
+    NSRunningApplication, NSView, NSWindow, NSWindowButton,
+    NSWindowDidChangeBackingPropertiesNotification, NSWindowDidEnterFullScreenNotification,
+    NSWindowDidExitFullScreenNotification, NSWindowDidResizeNotification,
+    NSWindowDidUpdateNotification, NSWindowStyleMask, NSWorkspaceOpenConfiguration,
 };
 use objc2_foundation::{NSNotification, NSNotificationCenter};
 use objc2_web_kit::WKWebView;
@@ -24,6 +27,45 @@ const BUTTONS: [NSWindowButton; 3] = [
     NSWindowButton::MiniaturizeButton,
     NSWindowButton::ZoomButton,
 ];
+
+/// The activation policy a host launches with. A background launch is prohibited from activating, which also stops
+/// AppKit, LaunchServices and windowing toolkits from activating it on its behalf.
+pub fn activation_policy() -> NSApplicationActivationPolicy {
+    match Launch::current() {
+        Launch::Foreground => NSApplicationActivationPolicy::Regular,
+        Launch::Background => NSApplicationActivationPolicy::Prohibited,
+    }
+}
+
+/// Brings `window` to the front, restoring it if it is minimized. In the foreground the window becomes key and the
+/// application activates; in the background the window is ordered front without either.
+pub fn present(main: MainThreadMarker, window: &NSWindow) {
+    if window.isMiniaturized() {
+        window.deminiaturize(None);
+    }
+    match Launch::current() {
+        Launch::Foreground => {
+            window.makeKeyAndOrderFront(None);
+            #[allow(deprecated)]
+            NSApplication::sharedApplication(main).activateIgnoringOtherApps(true);
+        }
+        Launch::Background => window.orderFrontRegardless(),
+    }
+}
+
+/// Activates another running application, or in the background leaves it where it is.
+pub fn activate(application: &NSRunningApplication) {
+    if Launch::current().takes_focus() {
+        application.activateWithOptions(NSApplicationActivationOptions::empty());
+    }
+}
+
+/// A configuration for opening an application that activates it only in the foreground.
+pub fn open_configuration() -> Retained<NSWorkspaceOpenConfiguration> {
+    let configuration = NSWorkspaceOpenConfiguration::configuration();
+    configuration.setActivates(Launch::current().takes_focus());
+    configuration
+}
 
 fn missing(reason: &'static str) -> PlacementError {
     PlacementError::Measurement { reason }

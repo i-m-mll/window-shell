@@ -1,10 +1,49 @@
-//! Native window-control placement, and the root attributes through which a native host reports it to the page.
+//! The native half of the window shell: how a host launches, where its window controls go, and the root attributes
+//! through which it reports them to the page.
 
 #[cfg(all(target_os = "macos", feature = "appkit"))]
 pub mod appkit;
 
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{env, ffi::OsStr, fmt, sync::OnceLock};
+
+/// How a native host presents itself, read once per process from [`Launch::VARIABLE`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Launch {
+    /// An ordinary launch: the application activates and the window it presents becomes key.
+    Foreground,
+    /// A launch for verification beside someone's work: windows are shown and ordered front, but the application never
+    /// activates and no window becomes key, so keyboard focus stays where it was.
+    Background,
+}
+
+impl Launch {
+    /// `WINDOW_SHELL_BACKGROUND=1` selects [`Launch::Background`]; unset selects [`Launch::Foreground`].
+    pub const VARIABLE: &'static str = "WINDOW_SHELL_BACKGROUND";
+
+    /// The process's launch mode. Any value of [`Launch::VARIABLE`] other than `1` is a launcher defect and panics.
+    pub fn current() -> Self {
+        static CURRENT: OnceLock<Launch> = OnceLock::new();
+        *CURRENT.get_or_init(|| {
+            Self::parse(env::var_os(Self::VARIABLE).as_deref()).unwrap_or_else(|value| {
+                panic!("{} must be unset or 1, found {value:?}", Self::VARIABLE)
+            })
+        })
+    }
+
+    fn parse(value: Option<&OsStr>) -> Result<Self, String> {
+        match value {
+            None => Ok(Self::Foreground),
+            Some(value) if value == "1" => Ok(Self::Background),
+            Some(value) => Err(value.to_string_lossy().into_owned()),
+        }
+    }
+
+    /// Whether the windows this process creates or presents may take keyboard focus.
+    pub fn takes_focus(self) -> bool {
+        self == Self::Foreground
+    }
+}
 
 /// The title bar's height in CSS pixels, read from `--shell-header-height` in `browser/tokens.css`.
 mod tokens {
@@ -254,6 +293,15 @@ mod tests {
         };
         assert_eq!(deviation.center_error, 9.0);
         assert_eq!(deviation.left_error, 7.0);
+    }
+
+    #[test]
+    fn only_an_explicit_one_selects_the_background_launch() {
+        assert_eq!(Launch::parse(None), Ok(Launch::Foreground));
+        assert_eq!(Launch::parse(Some(OsStr::new("1"))), Ok(Launch::Background));
+        for value in ["", "0", "true"] {
+            assert!(Launch::parse(Some(OsStr::new(value))).is_err());
+        }
     }
 
     #[test]
