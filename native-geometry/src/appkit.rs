@@ -13,7 +13,7 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationOptions, NSApplicationActivationPolicy,
-    NSRunningApplication, NSView, NSWindow, NSWindowButton,
+    NSApplicationDidHideNotification, NSRunningApplication, NSView, NSWindow, NSWindowButton,
     NSWindowDidChangeBackingPropertiesNotification, NSWindowDidEnterFullScreenNotification,
     NSWindowDidExitFullScreenNotification, NSWindowDidResizeNotification,
     NSWindowDidUpdateNotification, NSWindowStyleMask, NSWorkspaceOpenConfiguration,
@@ -38,7 +38,8 @@ pub fn activation_policy() -> NSApplicationActivationPolicy {
 }
 
 /// Brings `window` to the front, restoring it if it is minimized. In the foreground the window becomes key and the
-/// application activates; in the background the window is ordered front without either.
+/// application activates; in the background the window is ordered front without either, and the application is kept
+/// unhidden from then on.
 pub fn present(main: MainThreadMarker, window: &NSWindow) {
     if window.isMiniaturized() {
         window.deminiaturize(None);
@@ -49,8 +50,38 @@ pub fn present(main: MainThreadMarker, window: &NSWindow) {
             #[allow(deprecated)]
             NSApplication::sharedApplication(main).activateIgnoringOtherApps(true);
         }
-        Launch::Background => window.orderFrontRegardless(),
+        Launch::Background => {
+            keep_unhidden(main);
+            window.orderFrontRegardless();
+        }
     }
+}
+
+/// A bundled application starts as a regular one, and macOS hides it about a second after it switches to the prohibited
+/// policy, taking any window already presented off screen. A background host undoes that hide without activating.
+fn keep_unhidden(main: MainThreadMarker) {
+    thread_local! {
+        static OBSERVING: Cell<bool> = const { Cell::new(false) };
+    }
+    let app = NSApplication::sharedApplication(main);
+    if app.isHidden() {
+        app.unhideWithoutActivation();
+    }
+    if OBSERVING.replace(true) {
+        return;
+    }
+    let unhide = RcBlock::new(move |_: NonNull<NSNotification>| {
+        NSApplication::sharedApplication(main).unhideWithoutActivation()
+    });
+    let token = unsafe {
+        NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+            Some(NSApplicationDidHideNotification),
+            Some(&app),
+            None,
+            &unhide,
+        )
+    };
+    std::mem::forget(token);
 }
 
 /// Activates another running application, or in the background leaves it where it is.
