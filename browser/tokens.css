@@ -57,13 +57,14 @@
 
   --app-boundary-line-color: #272727;
   --app-header-inline-inset: 18px;
-  --app-frame-header-height: 42px;
-  --app-header-height: 48px;
+  --shell-header-height: 42px;
+  --shell-titlebar-gap: 2px;
+  --shell-titlebar-offset: 14px;
   --app-header-logo-size: 22px;
   --app-header-control-size: 34px;
   --app-header-control-icon-size: 18px;
   --app-header-control-icon-inline-inset: calc((var(--app-header-control-size) - var(--app-header-control-icon-size)) / 2);
-  --app-header-control-block-inset: calc((var(--app-header-height) - var(--app-header-control-size)) / 2);
+  --app-header-control-block-inset: calc((var(--shell-header-height) - var(--app-header-control-size)) / 2);
   --app-divider: #434343;
   --app-divider-emphasis: #434343;
   --z-app-subdivision: 70;

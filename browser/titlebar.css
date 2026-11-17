@@ -1,0 +1,39 @@
+/* The leading group of the title bar. The native host sets
+ * data-shell-window-controls and --shell-window-controls-reservation on the
+ * root; without them the window controls are absent. */
+.shell-titlebar__leading {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 100%;
+  gap: var(--shell-titlebar-gap);
+}
+
+.shell-titlebar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--app-header-control-size);
+  height: var(--app-header-control-size);
+  margin-inline: calc((var(--shell-rail-width) - var(--app-header-control-size)) / 2) calc(var(--shell-titlebar-offset) - var(--shell-titlebar-gap));
+}
+
+.shell-titlebar__logo > :is(img, svg) {
+  width: var(--app-header-logo-size);
+  height: var(--app-header-logo-size);
+}
+
+:root[data-shell-window-controls='overlay'] .shell-titlebar__logo {
+  margin-inline-start: calc(var(--shell-window-controls-reservation) - (var(--app-header-control-size) - var(--app-header-logo-size)) / 2);
+}
+
+[data-shell-drag-region] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+[data-shell-drag-region] :is(input, textarea, [contenteditable]:not([contenteditable='false'])) {
+  user-select: text;
+  -webkit-user-select: text;
+}
