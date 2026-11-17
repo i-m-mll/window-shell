@@ -1,12 +1,38 @@
-//! Measure AppKit controls in the window's logical coordinate space.
+//! Measure and place AppKit window controls in the window's logical coordinate space, and keep them placed.
 
-use crate::{controls_reservation, union, Rect};
-use objc2_app_kit::{NSView, NSWindow, NSWindowButton, NSWindowStyleMask};
+use crate::{
+    button_placement, controls_reservation, header, union, verify, PlacementError, Rect,
+    WindowControls,
+};
+use block2::RcBlock;
+use objc2::{
+    rc::Retained,
+    runtime::{NSObjectProtocol, ProtocolObject},
+    MainThreadMarker, Message,
+};
+use objc2_app_kit::{
+    NSView, NSWindow, NSWindowButton, NSWindowDidChangeBackingPropertiesNotification,
+    NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
+    NSWindowDidResizeNotification, NSWindowDidUpdateNotification, NSWindowStyleMask,
+};
+use objc2_foundation::{NSNotification, NSNotificationCenter};
+use objc2_web_kit::WKWebView;
+use std::{cell::Cell, cell::RefCell, ptr::NonNull, rc::Rc};
 
-pub fn rect_in_window(native: &NSWindow, view: &NSView) -> Result<Rect, &'static str> {
+const BUTTONS: [NSWindowButton; 3] = [
+    NSWindowButton::CloseButton,
+    NSWindowButton::MiniaturizeButton,
+    NSWindowButton::ZoomButton,
+];
+
+fn missing(reason: &'static str) -> PlacementError {
+    PlacementError::Measurement { reason }
+}
+
+pub fn rect_in_window(native: &NSWindow, view: &NSView) -> Result<Rect, PlacementError> {
     let owner = view
         .window()
-        .ok_or("Native view is not attached to a window")?;
+        .ok_or(missing("Native view is not attached to a window"))?;
     let screen = owner.convertRectToScreen(view.convertRect_toView(view.bounds(), None));
     let window = native.frame();
     Ok(Rect {
@@ -17,32 +43,159 @@ pub fn rect_in_window(native: &NSWindow, view: &NSView) -> Result<Rect, &'static
     })
 }
 
-pub fn standard_buttons(native: &NSWindow) -> Result<Vec<Rect>, &'static str> {
-    [
-        NSWindowButton::CloseButton,
-        NSWindowButton::MiniaturizeButton,
-        NSWindowButton::ZoomButton,
-    ]
-    .into_iter()
-    .map(|kind| {
-        let button = native
-            .standardWindowButton(kind)
-            .ok_or("Missing native window button")?;
-        rect_in_window(native, &button)
-    })
-    .collect()
+pub fn standard_buttons(native: &NSWindow) -> Result<Vec<Rect>, PlacementError> {
+    BUTTONS
+        .into_iter()
+        .map(|kind| {
+            let button = native
+                .standardWindowButton(kind)
+                .ok_or(missing("Missing native window button"))?;
+            rect_in_window(native, &button)
+        })
+        .collect()
 }
 
-/// The leading CSS space occupied by the measured controls above an overlay webview.
-pub fn overlay_reservation(
+/// Centres the standard buttons in the title bar above `webview`, verifies they are there, and reports the result.
+pub fn place_controls(
     native: &NSWindow,
-    webview: &NSView,
-    page_zoom: f64,
-) -> Result<f64, &'static str> {
+    webview: &WKWebView,
+) -> Result<WindowControls, PlacementError> {
+    native.layoutIfNeeded();
     if native.styleMask().contains(NSWindowStyleMask::FullScreen) {
-        return Ok(0.0);
+        return Ok(WindowControls::None);
     }
-    let bounds = union(&standard_buttons(native)?);
-    let webview = rect_in_window(native, webview)?;
-    Ok(controls_reservation(webview, bounds, page_zoom))
+    let scale = unsafe { webview.pageZoom() };
+    let header = header(rect_in_window(native, webview)?, scale);
+    let before = standard_buttons(native)?;
+    let desired = button_placement(header, &before);
+    let tolerance = 0.5 / native.backingScaleFactor();
+    let window = native.frame();
+    for ((kind, rect), &(left, top)) in BUTTONS.into_iter().zip(&before).zip(&desired) {
+        if (rect.left - left).abs() <= tolerance && (rect.top - top).abs() <= tolerance {
+            continue;
+        }
+        let button = native
+            .standardWindowButton(kind)
+            .ok_or(missing("Missing native window button"))?;
+        let parent =
+            unsafe { button.superview() }.ok_or(missing("Missing native button parent"))?;
+        let owner = parent
+            .window()
+            .ok_or(missing("Native button parent has no window"))?;
+        let mut screen = button.bounds();
+        screen.origin.x = window.origin.x + left;
+        screen.origin.y = window.origin.y + window.size.height - top - rect.height;
+        let local = parent.convertRect_fromView(owner.convertRectFromScreen(screen), None);
+        button.setFrameOrigin(local.origin);
+    }
+    let after = standard_buttons(native)?;
+    let bounds = union(&after);
+    verify(header, before, after, desired, tolerance)?;
+    Ok(WindowControls::Overlay {
+        reservation: controls_reservation(header, bounds, scale),
+    })
+}
+
+type Report = dyn Fn(Result<WindowControls, PlacementError>);
+
+struct Placer {
+    native: Retained<NSWindow>,
+    webview: Retained<WKWebView>,
+    report: Box<Report>,
+    placing: Cell<bool>,
+    last: RefCell<Option<Result<WindowControls, PlacementError>>>,
+}
+
+impl Placer {
+    fn place(&self) {
+        if self.placing.replace(true) {
+            return;
+        }
+        let outcome = place_controls(&self.native, &self.webview);
+        self.placing.set(false);
+        let changed = match (&*self.last.borrow(), &outcome) {
+            (Some(Ok(previous)), Ok(current)) => previous != current,
+            (Some(Err(_)), Err(_)) => false,
+            _ => true,
+        };
+        if changed {
+            self.last.replace(Some(outcome.clone()));
+            (self.report)(outcome);
+        }
+    }
+}
+
+/// Keeps a window's controls placed for as long as it lives; dropping it stops the observation.
+pub struct ControlsObserver {
+    placer: Rc<Placer>,
+    center: Retained<NSNotificationCenter>,
+    tokens: Vec<Retained<ProtocolObject<dyn NSObjectProtocol>>>,
+}
+
+impl ControlsObserver {
+    /// The latest outcome, for a host to deliver again to a page that has just loaded.
+    pub fn current(&self) -> Result<WindowControls, PlacementError> {
+        self.placer
+            .last
+            .borrow()
+            .clone()
+            .expect("the observer places the controls when it is created")
+    }
+}
+
+impl Drop for ControlsObserver {
+    fn drop(&mut self) {
+        for token in &self.tokens {
+            unsafe { self.center.removeObserver(token.as_ref()) };
+        }
+    }
+}
+
+/// Places the controls now and again whenever the window updates, resizes, changes scale, or enters or leaves fullscreen.
+///
+/// `report` receives the first outcome and every change of outcome after it: a new `WindowControls`, or the first
+/// failure after a success. It runs on the main thread, inside the AppKit notification that caused it.
+pub fn observe_controls(
+    _main: MainThreadMarker,
+    native: &NSWindow,
+    webview: &WKWebView,
+    report: impl Fn(Result<WindowControls, PlacementError>) + 'static,
+) -> ControlsObserver {
+    let placer = Rc::new(Placer {
+        native: native.retain(),
+        webview: webview.retain(),
+        report: Box::new(report),
+        placing: Cell::new(false),
+        last: RefCell::new(None),
+    });
+    placer.place();
+    let center = NSNotificationCenter::defaultCenter();
+    let tokens = unsafe {
+        [
+            NSWindowDidUpdateNotification,
+            NSWindowDidResizeNotification,
+            NSWindowDidChangeBackingPropertiesNotification,
+            NSWindowDidEnterFullScreenNotification,
+            NSWindowDidExitFullScreenNotification,
+        ]
+    }
+    .into_iter()
+    .map(|name| {
+        let placer = placer.clone();
+        let callback = RcBlock::new(move |_: NonNull<NSNotification>| placer.place());
+        unsafe {
+            center.addObserverForName_object_queue_usingBlock(
+                Some(name),
+                Some(native),
+                None,
+                &callback,
+            )
+        }
+    })
+    .collect();
+    ControlsObserver {
+        placer,
+        center,
+        tokens,
+    }
 }
