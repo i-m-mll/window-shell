@@ -1,0 +1,13 @@
+{
+  "name": "@window-shell/browser",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./frame.css": "./frame.css",
+    "./layout": "./layout.ts",
+    "./separator": "./separator.ts",
+    "./tooltip": "./tooltip.ts"
+  }
+}

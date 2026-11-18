@@ -1,0 +1,5 @@
+Window Shell
+
+The native window geometry and AppKit measurements and the shared light and dark tokens were extracted from Mandible (https://github.com/i-m-mll/mandible). The extraction is recorded in source commits 466d225 and ee8c068.
+
+The Apache License, Version 2.0, applies to this project's published source, including the source in its history through 4060ec13c7e5afd07999320d6e709a84feb2d945.

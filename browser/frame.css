@@ -1,0 +1,93 @@
+.shell-frame {
+  display: grid;
+  grid-template-columns: var(--shell-rail-width, 0px) minmax(0, 1fr);
+  grid-template-rows: var(--shell-header-height, var(--app-header-height)) minmax(0, 1fr) auto;
+  isolation: isolate;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-chrome);
+}
+
+.shell-frame__bar {
+  grid-area: 1 / 1 / 2 / -1;
+  min-width: 0;
+}
+
+.shell-frame__cell {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+}
+
+.shell-frame__cell[data-separated]::before {
+  content: '';
+  position: absolute;
+  inset-block: 25%;
+  inset-inline-start: 0;
+  width: 1px;
+  background: var(--border-muted);
+  pointer-events: none;
+}
+
+.shell-frame__rail {
+  grid-area: 2 / 1;
+  min-height: 0;
+}
+
+.shell-frame__content {
+  grid-area: 2 / 2;
+  min-width: 0;
+  min-height: 0;
+  border-start-start-radius: var(--shell-inset-radius, var(--radius-lg));
+  background: var(--surface-main);
+  box-shadow: var(--shell-inset-shadow, 0 0 var(--space-3) var(--border-default));
+}
+
+.shell-frame:has(> .shell-frame__footer) > .shell-frame__content {
+  border-end-start-radius: var(--shell-inset-radius, var(--radius-lg));
+}
+
+.shell-frame__footer {
+  grid-area: 3 / 1 / 4 / -1;
+  min-width: 0;
+}
+
+.shell-scroll-rail {
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.shell-scroll-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.shell-scroll-rail > * {
+  flex-shrink: 0;
+}
+
+.shell-scroll-rail[data-axis='x'] { overflow: auto hidden; }
+.shell-scroll-rail[data-axis='y'] { overflow: hidden auto; }
+
+.shell-separator {
+  touch-action: none;
+}
+
+.shell-separator:focus-visible {
+  outline: 2px solid var(--shell-focus-color, var(--text-primary));
+  outline-offset: -1px;
+}
+
+.app-hover-tip {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--shell-tooltip-surface, var(--neutral-3));
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  box-shadow: var(--shell-tooltip-shadow, var(--shadow-header));
+  font-size: 12px;
+  line-height: 1.2;
+  pointer-events: none;
+}
