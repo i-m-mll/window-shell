@@ -54,6 +54,8 @@
   --shadow-rail: 10px 0 30px rgba(0, 0, 0, 0.18);
   --shadow-panel-top: 0 -10px 24px rgba(0, 0, 0, 0.18);
   --shadow-content-top: inset 0 18px 24px -28px rgba(0, 0, 0, 0.28);
+  /* The content casts its shadow onto the bars in light mode only. */
+  --shell-inset-shadow: none;
 
   --app-boundary-line-color: #272727;
   --app-header-inline-inset: 18px;
@@ -129,6 +131,7 @@
   --shadow-rail: 10px 0 30px rgba(15, 23, 42, 0.08);
   --shadow-panel-top: 0 -10px 24px rgba(15, 23, 42, 0.08);
   --shadow-content-top: inset 0 18px 24px -28px rgba(15, 23, 42, 0.2);
+  --shell-inset-shadow: 0 0 var(--space-3) var(--border-default);
 
   --app-boundary-line-color: #eaeaeb;
   --app-divider: #D7D7D8;

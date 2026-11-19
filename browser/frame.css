@@ -40,7 +40,7 @@
   min-height: 0;
   border-start-start-radius: var(--shell-inset-radius, var(--radius-lg));
   background: var(--surface-main);
-  box-shadow: var(--shell-inset-shadow, 0 0 var(--space-3) var(--border-default));
+  box-shadow: var(--shell-inset-shadow);
 }
 
 .shell-frame:has(> .shell-frame__footer) > .shell-frame__content {
