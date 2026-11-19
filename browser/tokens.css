@@ -54,16 +54,19 @@
   --shadow-rail: 10px 0 30px rgba(0, 0, 0, 0.18);
   --shadow-panel-top: 0 -10px 24px rgba(0, 0, 0, 0.18);
   --shadow-content-top: inset 0 18px 24px -28px rgba(0, 0, 0, 0.28);
+  /* The content casts its shadow onto the bars in light mode only. */
+  --shell-inset-shadow: none;
 
   --app-boundary-line-color: #272727;
   --app-header-inline-inset: 18px;
-  --app-frame-header-height: 42px;
-  --app-header-height: 48px;
+  --shell-header-height: 42px;
+  --shell-titlebar-gap: 2px;
+  --shell-titlebar-offset: 14px;
   --app-header-logo-size: 22px;
   --app-header-control-size: 34px;
   --app-header-control-icon-size: 18px;
   --app-header-control-icon-inline-inset: calc((var(--app-header-control-size) - var(--app-header-control-icon-size)) / 2);
-  --app-header-control-block-inset: calc((var(--app-header-height) - var(--app-header-control-size)) / 2);
+  --app-header-control-block-inset: calc((var(--shell-header-height) - var(--app-header-control-size)) / 2);
   --app-divider: #434343;
   --app-divider-emphasis: #434343;
   --z-app-subdivision: 70;
@@ -129,6 +132,7 @@
   --shadow-rail: 10px 0 30px rgba(15, 23, 42, 0.08);
   --shadow-panel-top: 0 -10px 24px rgba(15, 23, 42, 0.08);
   --shadow-content-top: inset 0 18px 24px -28px rgba(15, 23, 42, 0.2);
+  --shell-inset-shadow: 0 0 var(--space-3) var(--border-default);
 
   --app-boundary-line-color: #eaeaeb;
   --app-divider: #D7D7D8;

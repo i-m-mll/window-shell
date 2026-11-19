@@ -1,0 +1,11 @@
+{
+  "name": "window-shell",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^21.0.4"
+  }
+}
