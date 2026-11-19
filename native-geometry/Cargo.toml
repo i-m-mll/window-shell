@@ -4,12 +4,27 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
+build = "build.rs"
 
 [features]
-appkit = ["dep:objc2-app-kit"]
+appkit = ["dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-web-kit", "dep:block2"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3.2", optional = true, default-features = false, features = ["NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"] }
+block2 = { version = "0.6.2", optional = true }
+objc2 = { version = "0.6.4", optional = true }
+objc2-app-kit = { version = "0.3.2", optional = true, default-features = false, features = ["NSApplication", "NSButton", "NSControl", "NSLayoutConstraint", "NSResponder", "NSRunningApplication", "NSView", "NSWindow", "NSWorkspace", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3.2", optional = true, default-features = false, features = ["NSNotification", "NSOperation", "NSString", "block2"] }
+objc2-web-kit = { version = "0.3.2", optional = true, default-features = false, features = ["WKWebView", "objc2-app-kit", "objc2-core-foundation"] }
+
+[[example]]
+name = "probe"
+required-features = ["appkit"]
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSGraphics"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSTimer"] }
+objc2-web-kit = { version = "0.3.2", default-features = false, features = ["WKWebViewConfiguration"] }
+serde_json = "1"
